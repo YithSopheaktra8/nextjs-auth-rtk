@@ -11,10 +11,10 @@ type Data = {
 export async function POST() {
 	// Get the refresh token from the client-side cookies
 	const cookieStore = cookies();
-	const cookieName = "refresh_token";
+	const cookieName = "refresh";
 	const credential = cookieStore.get(cookieName);
 
-	console.log("refresh token : "+credential?.value);
+	console.log("credential : ", credential);
 
 	// If the refresh token is not found, return an error message to the client-side
 	if (!credential) {
@@ -29,24 +29,14 @@ export async function POST() {
 	}
 	// get the refresh token value
 
-    const authorizationHeader = `Basic ${Buffer.from(`mobile:password`).toString("base64")}`;
-    const requestBody = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: "mobile",
-      redirect_uri: `http://localhost:3000/api/auth/callback`,
-      refresh_token: credential.value,
-    });
 
 	// if the refresh token is found, make a POST request to the Our API
 	const response = await fetch(
-		"http://localhost:8080/oauth2/token",
+		`http://localhost:8080/api/v1/auth/refresh-token`,
 		{
 			method: "POST",
-			headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Authorization: authorizationHeader,
-              },
-              body: requestBody,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({refreshToken: credential.value}),
 		}
 	);
 	// If the request fails, return an error message to the client-side
@@ -62,9 +52,8 @@ export async function POST() {
 	}
 	// Parse the response body to get the data
 	const data = await response.json();
-	console.log("data after refresh token : ",data)
-	const refresh = data?.refresh_token || null;
-	const access = data?.access_token || null;
+	const refresh = data?.refreshToken || null;
+	const access = data?.accessToken || null;
 
 	// Serialize the refresh token and set it as a cookie with
 	// (httpOnly, secure, path, and sameSite options) in the response headers to the client-side
@@ -74,8 +63,6 @@ export async function POST() {
 		path: "/",
 		sameSite: "lax",
 	});
-
-	console.log("access token : ", access);
 
 	// Return the access token to the client-side with the serialized refresh token as a cookie
 	return NextResponse.json(
