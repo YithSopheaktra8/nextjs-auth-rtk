@@ -2,13 +2,20 @@ import { NextJsApi } from "../api";
 
 export const employeeApi = NextJsApi.injectEndpoints({
     endpoints: (builder) => ({
-        getEmployeesByDepartment: builder.query<any, {deptId : number}>({
-            query: ({deptId}) => `employees/department/${deptId}`
+      startEmployeeProcedureTask: builder.mutation<any, { deptId: number }>({
+        query: ({ deptId }) => ({
+          url: `employees/department/${deptId}/start-task`,
+          method: "POST",
         }),
+      }),
+      getTaskResult: builder.query<any, { taskId: string }>({
+        query: ({ taskId }) => `employees/tasks/${taskId}/result`,
+      }),
     }),
-});
-
-export const { 
-    useGetEmployeesByDepartmentQuery,
-    useLazyGetEmployeesByDepartmentQuery,
- } = employeeApi;
+  });
+  
+  export const {
+    useStartEmployeeProcedureTaskMutation,
+    useLazyGetTaskResultQuery,
+  } = employeeApi;
+  

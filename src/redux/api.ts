@@ -24,7 +24,6 @@ const baseQueryWithReAuth = async (args: any, api: any, extraOptions: any) => {
 		});
 		if (res.status === 200) {
 			const data = await res.json();
-            console.log("data : ", data);
 			api.dispatch(setAccessToken(data.accessToken));
 			// re-run the query with the new token
 			result = await baseQuery(args, api, extraOptions);

@@ -14,8 +14,6 @@ export async function POST() {
 	const cookieName = "refresh";
 	const credential = cookieStore.get(cookieName);
 
-	console.log("credential : ", credential);
-
 	// If the refresh token is not found, return an error message to the client-side
 	if (!credential) {
 		return NextResponse.json(

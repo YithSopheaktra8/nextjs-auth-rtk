@@ -1,23 +1,86 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import {
-  useGetEmployeesByDepartmentQuery,
-  useLazyGetEmployeesByDepartmentQuery,
+  useLazyGetTaskResultQuery,
+  useStartEmployeeProcedureTaskMutation,
 } from "@/redux/services/employees";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const router = useRouter();
   // const { data: getEmployeesByDepartmentData } =
   //   useGetEmployeesByDepartmentQuery({ deptId: 30 });
 
-  const [trigger, { data: getEmployeesByDepartmentData, isLoading, isError }] =
-    useLazyGetEmployeesByDepartmentQuery();
+  const [startTask] = useStartEmployeeProcedureTaskMutation();
+  const [triggerResult, { data: taskResult, isLoading: isPolling }] =
+    useLazyGetTaskResultQuery();
 
-    console.log("getEmployeesByDepartmentData : ", getEmployeesByDepartmentData);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [intervalId, setIntervalId] = useState<any>(null);
+  const [resultData, setResultData] = useState<any>(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [completedTaskData, setCompletedTaskData] = useState<any>(null);
+
+  const startPolling = (id: string) => {
+    return setInterval(async () => {
+      try {
+        const result = await triggerResult({ taskId: id }, true).unwrap();
+        setResultData(result);
+        clearInterval(intervalId); // ✅ stop polling when done
+        localStorage.removeItem("taskId"); // ✅ clear storage
+      } catch (err: any) {
+        if (err?.status !== 202) {
+          console.error("Error polling:", err);
+          clearInterval(intervalId);
+        }
+      }
+    }, 3000);
+  };
+
+  const startAsyncTask = async () => {
+    const res = await startTask({ deptId: 30 }).unwrap();
+    setTaskId(res.taskId);
+    localStorage.setItem("taskId", res.taskId); // 🔥 store taskId
+
+    const id = startPolling(res.taskId);
+    setIntervalId(id);
+  };
+
+  const checkTaskStatus = async (taskId: string) => {
+    try {
+      const result = await triggerResult({ taskId }, true).unwrap();
+      setCompletedTaskData(result);
+      setShowPopup(true); // 🚀 show popup if completed
+      localStorage.removeItem("taskId");
+    } catch (err: any) {
+      if (err?.status === 202) {
+        setShowPopup(true); // Task still running
+      } else {
+        console.error("Error checking task:", err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const savedTaskId = localStorage.getItem("taskId");
+    if (savedTaskId) {
+      setTaskId(savedTaskId);
+      const id = startPolling(savedTaskId);
+      setIntervalId(id);
+    }
+  }, []);
+
+  useEffect(() => {
+    const savedTaskId = localStorage.getItem("taskId");
+    if (savedTaskId) {
+      checkTaskStatus(savedTaskId);
+    }
+  }, []);
 
   const logout = () => {
+    localStorage.removeItem("taskId");
     fetch("http://localhost:3000/api/auth/logout", {
       method: "POST",
       credentials: "include",
@@ -32,10 +95,35 @@ export default function Home() {
       });
   };
 
-
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
+        {showPopup && (
+          <div className="fixed bottom-8 right-8 bg-white border shadow-lg p-4 rounded-lg z-50">
+            <p className="font-semibold">
+              {completedTaskData
+                ? "Your data is ready!"
+                : "Your task is still processing..."}
+            </p>
+            {completedTaskData && (
+              <Button
+                className="mt-2"
+                onClick={() => {
+                  setResultData(completedTaskData);
+                  setShowPopup(false);
+                }}
+              >
+                View Data
+              </Button>
+            )}
+            {!completedTaskData && (
+              <Button className="mt-2" onClick={() => setShowPopup(false)}>
+                Close
+              </Button>
+            )}
+          </div>
+        )}
+
         <Image
           className="dark:invert"
           src="/next.svg"
@@ -45,22 +133,17 @@ export default function Home() {
           priority
         />
         <div className="flex gap-4">
-          <Button onClick={() => trigger({ deptId: 30 })}>
-            Load Employees
-          </Button>
+          <Button onClick={startAsyncTask}>Load Employees</Button>
           <Button onClick={logout}>Logout</Button>
         </div>
-        {
-          
-        }
-        {isLoading && <p>Loading employees...</p>}
-        {isError && <p className="text-red-500">Failed to fetch employees.</p>}
+        {isPolling && <p>Polling for task result...</p>}
 
-        {getEmployeesByDepartmentData?.employees && (
+        {resultData?.employees && (
           <div className="overflow-x-auto mt-4">
             {/* exceute time */}
             <div className="text-sm text-gray-500 mb-2">
-              <p className="font-bold text-black">Excecute time : </p>{getEmployeesByDepartmentData?.executeTime}
+              <p className="font-bold text-black">Excecute time : </p>
+              {resultData?.executeTime}
             </div>
             <table className="min-w-full text-sm text-left border border-gray-300 shadow-md rounded-lg overflow-hidden">
               <thead className="bg-gray-100 text-gray-700">
@@ -75,7 +158,7 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {getEmployeesByDepartmentData.employees.map((emp : any) => (
+                {resultData.employees.map((emp: any) => (
                   <tr key={emp.employeeId} className="even:bg-gray-50">
                     <td className="px-4 py-2 border">{emp.employeeId}</td>
                     <td className="px-4 py-2 border">
